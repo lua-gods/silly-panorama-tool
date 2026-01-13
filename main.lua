@@ -51,6 +51,50 @@ local function writeFile(path, str, isBase64)
    buffer:close()
 end
 
+local function progress(i,N,text)
+   host:setActionbar(('[{"text":"'..("|"):rep(i)..'","color":"red"},{"text":"'..("|"):rep(N-i)..'","color":"gray"},{"text":" '..text..'","color":"white"}]'))
+end
+
+local notRam = {}
+local totalCount, currentCount = 0,0
+local queryAction = {}
+local cooldownSave = 0
+
+function events.world_render()
+   if cooldownSave < 0 then
+      if queryAction[1] then
+         local q = queryAction[1]
+         
+         cooldownSave = 10 -- let 10 frames to process first to avoid disconnection
+         if q.action == "save" then
+            notRam[q.id] = q.texture:save()
+            progress(currentCount, totalCount, 'Caching Texture '..q.id)
+         elseif q.action == "writeTex" then
+            writeFile(q.path, notRam[q.id], true)
+            progress(currentCount, totalCount, 'Saving Texture '..q.path)
+         elseif q.action == "writeTxt" then
+            writeFile(q.path, q.content)
+            progress(currentCount, totalCount, 'Saving Model File '..q.path)
+         end
+         currentCount = currentCount + 1
+         table.remove(queryAction, 1)
+         if #queryAction == 0 then
+            host:setActionbar('{"text":"Complete!","color":"green"}')
+         end
+      else
+         totalCount = 0
+         currentCount = 0
+      end
+   else
+      cooldownSave = cooldownSave - 1
+   end
+end
+
+local function addQuery(data)
+   totalCount = totalCount + 1
+   queryAction[#queryAction+1] = data
+end
+
 local function exportObj()
    local dirPath = "panorama-model"
    if not file:exists(dirPath) then
@@ -83,7 +127,8 @@ local function exportObj()
       -- use material
       table.insert(objFile, 'usemtl '..materialName)
       -- save texture
-      writeFile(dirPath..'/'..imageFileName, screenshot.texture:save(), true)
+      
+      
       -- generate vertices
       local mat = matrices.mat4()
       mat:scale(screenshot.size.x * 0.5, screenshot.size.y * 0.5, 1)
@@ -103,9 +148,41 @@ local function exportObj()
       vertexId = vertexId + 4
    end
 
+   -- query save texture
+   
+   for i, screenshot in ipairs(screenshots) do
+      addQuery{
+         action="save",
+         texture = screenshot.texture,
+         id = i
+      }
+   end
+   
+   for i, screenshot in ipairs(screenshots) do
+      local imageFileName = 'image'..i..'.png'
+      addQuery{
+         action = "writeTex",
+         path = dirPath..'/'..imageFileName,
+         id = i
+      }
+   end
+   
    -- print(table.concat(tbl, '\n'))
-   writeFile(dirPath..'/model.obj', table.concat(objFile, '\n'))
-   writeFile(dirPath..'/materials.mtl', table.concat(mtlFile, '\n'))
+   
+   addQuery{
+      action = "writeTxt",
+      content = table.concat(objFile, '\n'),
+      path = dirPath..'/model.obj'
+   }
+   
+   addQuery{
+      action = "writeTxt",
+      content = table.concat(mtlFile, '\n'),
+      path = dirPath..'/materials.mtl'
+   }
+   
+   --writeFile(dirPath..'/model.obj', table.concat(objFile, '\n'))
+   --writeFile(dirPath..'/materials.mtl', table.concat(mtlFile, '\n'))
 end
 
 local function updateSpriteTasks()
