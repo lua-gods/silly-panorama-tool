@@ -6,7 +6,7 @@ local colorOnlyPreview = true
 
 local whitePixel = textures.whitePixel or textures:newTexture('whitePixel', 1, 1):setPixel(0, 0, 1, 1, 1)
 
-local screenshotDelay = 10
+local screenshotDelay = client:hasShaderPack() and 60 or 10
 previewModel:scale(16)
 
 ---@type {model: ModelPart, texture: Texture, sprite: SpriteTask, rot: Vector2, size: Vector2, hue: number}[]
