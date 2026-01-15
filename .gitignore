@@ -1,1 +1,3 @@
 /silly panorama tool.zip
+/love2drenderer/model/*
+!/love2drenderer/model/.gitkeep

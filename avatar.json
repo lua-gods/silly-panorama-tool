@@ -3,5 +3,6 @@
    "authors": [
       "AuriaFoxGirl"
    ],
+   "autoScripts": ["main"],
    "color": "#ccff88"
 }
