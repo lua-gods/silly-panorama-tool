@@ -44,7 +44,7 @@ local infoMessagesOffset = 0
 
 local exportResolution = 3
 local exportResolutions = {
-   512, 1024, 2048, 4096
+   512, 1024, 2048, 4096, 8192, 16384
 }
 
 ---@type love.Canvas
