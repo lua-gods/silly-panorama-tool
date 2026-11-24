@@ -262,6 +262,11 @@ local buttons = {
    }
 }
 
+local function lerp(a, b, t)
+   return a + (b - a) * t
+end
+
+
 function love.update(delta)
    if love.keyboard.isDown("escape") then love.event.push("quit") end
 
@@ -278,10 +283,11 @@ function love.update(delta)
       end
    end
 	
-	local scale = cameraFov / 90
+	local zoomScale = cameraFov / 90
+	local scaleX = zoomScale ^ (1 + math.cos(cameraX * math.pi) * 0.5)
 
-   local moveX = (oldMousePos[2] - mousePos[2]) * 2 * scale
-   local moveY = (oldMousePos[1] - mousePos[1]) * (wx / wy) * 2 * scale
+   local moveX = (oldMousePos[2] - mousePos[2]) * 2 * zoomScale
+   local moveY = (oldMousePos[1] - mousePos[1]) * (wx / wy) * 2 * scaleX
 
    if mouseIsDown and not buttons[selectedButton] then
       cameraX = cameraX + moveX
