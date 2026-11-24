@@ -34,6 +34,9 @@ local buttonWidth = buttonHeight * 5
 
 local mousePos = {0, 0}
 local oldMousePos = {0, 0}
+local mousePosStart = {0, 0}
+local cameraPosStart = {0, 0}
+local oldCameraRot = {0, 0}
 local mouseWasDown = false
 
 local selectedButton = 0
@@ -94,6 +97,111 @@ local function matrixMultiply(a, b)
    return newMat
 end
 
+-- https://stackoverflow.com/questions/1148309/inverting-a-4x4-matrix/44446912#44446912
+local function matrixInvert(m)
+   local A2323 = m[11] * m[16] - m[12] * m[15]
+   local A1323 = m[10] * m[16] - m[12] * m[14]
+   local A1223 = m[10] * m[15] - m[11] * m[14]
+   local A0323 = m[9] * m[16] - m[12] * m[13]
+   local A0223 = m[9] * m[15] - m[11] * m[13]
+   local A0123 = m[9] * m[14] - m[10] * m[13]
+   local A2313 = m[7] * m[16] - m[8] * m[15]
+   local A1313 = m[6] * m[16] - m[8] * m[14]
+   local A1213 = m[6] * m[15] - m[7] * m[14]
+   local A2312 = m[7] * m[12] - m[8] * m[11]
+   local A1312 = m[6] * m[12] - m[8] * m[10]
+   local A1212 = m[6] * m[11] - m[7] * m[10]
+   local A0313 = m[5] * m[16] - m[8] * m[13]
+   local A0213 = m[5] * m[15] - m[7] * m[13]
+   local A0312 = m[5] * m[12] - m[8] * m[9]
+   local A0212 = m[5] * m[11] - m[7] * m[9]
+   local A0113 = m[5] * m[14] - m[6] * m[13]
+   local A0112 = m[5] * m[10] - m[6] * m[9]
+
+   local det = m[1] * ( m[6] * A2323 - m[7] * A1323 + m[8] * A1223 )
+      - m[2] * ( m[5] * A2323 - m[7] * A0323 + m[8] * A0223 )
+      + m[3] * ( m[5] * A1323 - m[6] * A0323 + m[8] * A0123 )
+      - m[4] * ( m[5] * A1223 - m[6] * A0223 + m[7] * A0123 )
+   det = 1 / det
+
+   return {
+      det *   ( m[6] * A2323 - m[7] * A1323 + m[8] * A1223 ),
+      det * - ( m[2] * A2323 - m[3] * A1323 + m[4] * A1223 ),
+      det *   ( m[2] * A2313 - m[3] * A1313 + m[4] * A1213 ),
+      det * - ( m[2] * A2312 - m[3] * A1312 + m[4] * A1212 ),
+      det * - ( m[5] * A2323 - m[7] * A0323 + m[8] * A0223 ),
+      det *   ( m[1] * A2323 - m[3] * A0323 + m[4] * A0223 ),
+      det * - ( m[1] * A2313 - m[3] * A0313 + m[4] * A0213 ),
+      det *   ( m[1] * A2312 - m[3] * A0312 + m[4] * A0212 ),
+      det *   ( m[5] * A1323 - m[6] * A0323 + m[8] * A0123 ),
+      det * - ( m[1] * A1323 - m[2] * A0323 + m[4] * A0123 ),
+      det *   ( m[1] * A1313 - m[2] * A0313 + m[4] * A0113 ),
+      det * - ( m[1] * A1312 - m[2] * A0312 + m[4] * A0112 ),
+      det * - ( m[5] * A1223 - m[6] * A0223 + m[7] * A0123 ),
+      det *   ( m[1] * A1223 - m[2] * A0223 + m[3] * A0123 ),
+      det * - ( m[1] * A1213 - m[2] * A0213 + m[3] * A0113 ),
+      det *   ( m[1] * A1212 - m[2] * A0212 + m[3] * A0112 ),
+   }
+end
+
+---@param m number[]
+---@param v number[]
+---@return number[]
+local function matrixApply(m, v)
+   local v2 = {}
+   for i = 0, 3 do
+      local s = 0
+      for k = 0, 3 do
+         s = s + m[i * 4 + k + 1] * v[k + 1]
+      end
+      v2[i + 1] = s
+   end
+   return v2
+end
+
+---@param m number[]
+---@param v number[]
+---@return number[]
+local function matrixApply3d(m, v)
+   local v2 = matrixApply(m, {v[1], v[2], v[3], 1})
+   v2[1] = v2[1] / v2[4]
+   v2[2] = v2[2] / v2[4]
+   v2[3] = v2[3] / v2[4]
+   return v2
+end
+
+---@param camMat number[]
+---@param v number[]
+---@return number[]
+local function worldToScreen(camMat, v)
+   local v2 = matrixApply3d(camMat, v)
+
+   return {
+      v2[1] * 0.5 + 0.5,
+      v2[2] * 0.5 + 0.5,
+   }
+end
+
+---@param camMatInv number[]
+---@param v number[]
+---@param depth number?
+---@return number[]
+local function screenToWorld(camMatInv, v, depth)
+   depth = depth or 1
+   local v0 = {
+      v[1] * 2 - 1,
+      v[2] * 2 - 1,
+      depth
+   }
+   local v2 = matrixApply3d(camMatInv, v0)
+
+   return v2
+end
+
+local function fovToScale(fov)
+   return math.tan(math.pi / 180 * fov / 2)
+end
+
 ---@param fov number?
 ---@param aspect number?
 ---@return number[]
@@ -102,7 +210,7 @@ local function getPerspectiveMatrix(fov, aspect)
    aspect = aspect or 1
    local near = 0.0001
    local far = 1000
-   local top = near * math.tan(math.pi / 180 * fov / 2)
+   local top = near * fovToScale(fov)
    local right = top * aspect
    local left = -right
    local bottom = -top
@@ -140,13 +248,26 @@ end
 ---@param camX number?
 ---@param camY number?
 ---@param fov number?
+---@param canvas love.Canvas?
+---@return table
+local function getCameraMatrix(camX, camY, fov, canvas)
+   canvas = canvas or cameraMainCanvas
+   local sx, sy = canvas:getWidth(), canvas:getHeight()
+   fov = fov or cameraFov
+   return matrixMultiply(
+      getPerspectiveMatrix(fov, sx / sy),
+      getCameraRotMatrix(camX, camY)
+   )
+end
+
+---@param camX number?
+---@param camY number?
+---@param fov number?
 ---@param mainCanvas love.Canvas?
 ---@param weightSumCanvas love.Canvas?
 local function renderCamera(camX, camY, fov, mainCanvas, weightSumCanvas)
    mainCanvas = mainCanvas or cameraMainCanvas
    weightSumCanvas = weightSumCanvas or cameraWeightSumCanvas
-   fov = fov or cameraFov
-   local sx, sy = mainCanvas:getWidth(), mainCanvas:getHeight()
    love.graphics.setCanvas(mainCanvas, weightSumCanvas)
    love.graphics.clear()
    love.graphics.setBlendMode("add", "premultiplied")
@@ -155,10 +276,7 @@ local function renderCamera(camX, camY, fov, mainCanvas, weightSumCanvas)
    shaderAdd:send(
       "projectionMatrix",
       "row",
-      matrixMultiply(
-         getPerspectiveMatrix(fov, sx / sy),
-         getCameraRotMatrix(camX, camY)
-      )
+      getCameraMatrix(camX, camY, fov, mainCanvas)
    )
    for _, v in pairs(model) do
       love.graphics.draw(v)
@@ -223,7 +341,7 @@ end
 
 function love.wheelmoved(rx, ry)
 	cameraFov = cameraFov * (1 - ry * 0.1)
-	
+
 	cameraFov = math.max(math.min(cameraFov,120),1)
 end
 
@@ -266,6 +384,11 @@ local function lerp(a, b, t)
    return a + (b - a) * t
 end
 
+---@param rot number
+---@return number
+local function clampCamRot(rot)
+   return math.min(math.max(rot, -math.pi * 0.5), math.pi * 0.5)
+end
 
 function love.update(delta)
    if love.keyboard.isDown("escape") then love.event.push("quit") end
@@ -280,15 +403,110 @@ function love.update(delta)
       mousePos = {mx / wx, my / wy}
       if not mouseWasDown then
          oldMousePos = mousePos
+         mousePosStart = mousePos
+         cameraPosStart = {cameraX, cameraY}
+      end
+      oldCameraRot = {cameraX, cameraY}
+   end
+
+   -- local scaleX = zoomScale
+
+   local moveX, moveY = cameraX, cameraY
+   do
+      local scale = 4
+      local lastBest = 0
+      local dirs = {
+         {-1, 0},
+         {1, 0},
+         {0, -1},
+         {0, 1},
+         {0, 0},
+      }
+      local camMat = getCameraMatrix(cameraPosStart[1], cameraPosStart[2])
+      local camMatInv = matrixInvert(camMat)
+      local posOld = screenToWorld(camMatInv, {mousePosStart[1], mousePosStart[2]}, 1)
+      for _ = 1, 64 do
+         local bestDist = math.huge
+         local bestX = moveX
+         local bestY = moveY
+         for _, dir in pairs(dirs) do
+         -- moveX = offsetX * cameraFov / 180 * math.pi * 2
+         -- moveX = offsetX * math.pi / 2
+         -- moveY = offsetY * math.pi / 2
+         -- print(cameraX)
+         -- local scaleX = zoomScale ^ (1 + math.cos(cameraX * math.pi) * 0.5)
+         local newX = moveX + dir[1] * scale
+         local newY = moveY + dir[2] * scale
+         newX = clampCamRot(newX)
+         -- moveY = * (wx / wy) * 2 * scaleX
+         local camMat = getCameraMatrix(newX, newY)
+         -- local camMat = getCameraMatrix(moveX, moveY)
+         local camMatInv = matrixInvert(camMat)
+         -- local posOld = screenToWorld(camMatInv, {mousePosStart[1], mousePosStart[2]}, 1)
+         local posNew = screenToWorld(camMatInv, {mousePos[1], mousePos[2]}, 1)
+         -- print(posNew[1], posNew[2], posNew[3])
+
+         local dist = (posNew[1] - posOld[1]) ^ 2 + (posNew[2] - posOld[2]) ^ 2 + (posNew[3] - posOld[3]) ^ 2
+         if dist < bestDist then
+            bestDist = dist
+            bestX = newX
+            bestY = newY
+         end
+      end
+
+      moveX = bestX
+      moveY = bestY
+      scale = scale * 0.6
+      lastBest = bestDist
+
+      -- local rotYOld = math.atan2(posOld[3], posOld[1])
+      -- local rotYNew = math.atan2(posNew[3], posNew[1])
+      -- local offsetYRot = (rotYOld - rotYNew + math.pi) % (math.pi * 2) - math.pi
+
+      -- moveY = offsetYRot
+
+      -- local rotXOld = math.atan2(posOld[2], math.sqrt(posOld[1] * posOld[1] + posOld[3] * posOld[3]))
+      -- local rotXNew = math.atan2(posNew[2], math.sqrt(posNew[1] * posNew[1] + posNew[3] * posNew[3]))
+      -- local offsetXRot = (rotXOld - rotXNew + math.pi) % (math.pi * 2) - math.pi
+
+      -- moveX = offsetXRot
+   end
+      -- print("dist", math.sqrt(lastBest))
+      -- print("scale", scale)
+      -- print("pos", moveX, moveY)
+
+      -- for i = 0, 3 do
+      --    for k = 0, 3 do
+      --       io.write(math.floor(camMat[i + k * 4 + 1] * 1000) / 1000 .. "\t")
+      --    end
+      --    print()
+      -- end
+      -- print(pos[1], pos[2], pos[3], pos[4])
+      moveX = moveX - cameraPosStart[1]
+      moveY = moveY - cameraPosStart[2]
+   end
+
+   if mouseIsDown and not buttons[selectedButton] then
+      local newX = cameraPosStart[1] + moveX
+      local newY = cameraPosStart[2] + moveY
+      cameraX = newX
+      cameraY = newY
+   else
+      if mouseWasDown and not buttons[selectedButton] then
+         cameraVelX = (cameraX - oldCameraRot[1]) / delta
+         cameraVelY = (cameraY - oldCameraRot[2]) / delta
+      else
+         cameraX = cameraX + cameraVelX * delta * 0.5
+         cameraY = cameraY + cameraVelY * delta * 0.5
+         local velScale = 0.95 ^ (delta * 60)
+         cameraVelX = cameraVelX * velScale
+         cameraVelY = cameraVelY * velScale
+         cameraX = cameraX + cameraVelX * delta * 0.5
+         cameraY = cameraY + cameraVelY * delta * 0.5
       end
    end
-	
-	local zoomScale = cameraFov / 90
-	local scaleX = zoomScale ^ (1 + math.cos(cameraX * math.pi) * 0.5)
 
-   local moveX = (oldMousePos[2] - mousePos[2]) * 2 * zoomScale
-   local moveY = (oldMousePos[1] - mousePos[1]) * (wx / wy) * 2 * scaleX
-
+   --[[
    if mouseIsDown and not buttons[selectedButton] then
       cameraX = cameraX + moveX
       cameraY = cameraY + moveY
@@ -296,21 +514,21 @@ function love.update(delta)
       cameraVelY = 0
    end
 
-   do
-      if mouseWasDown and not buttons[selectedButton] then
-			cameraVelX = moveX / delta
-         cameraVelY = moveY / delta
-		else
-			local velScale = 0.95 ^ (delta * 60)
-			cameraVelX = cameraVelX * velScale
-			cameraVelY = cameraVelY * velScale
-			cameraX = cameraX + cameraVelX * delta
-			cameraY = cameraY + cameraVelY * delta
-      end
-		
+   if mouseWasDown and not buttons[selectedButton] then
+      cameraVelX = moveX / delta
+      cameraVelY = moveY / delta
+   else
+      cameraX = cameraX + cameraVelX * delta * 0.5
+      cameraY = cameraY + cameraVelY * delta * 0.5
+      local velScale = 0.95 ^ (delta * 60)
+      cameraVelX = cameraVelX * velScale
+      cameraVelY = cameraVelY * velScale
+      cameraX = cameraX + cameraVelX * delta * 0.5
+      cameraY = cameraY + cameraVelY * delta * 0.5
    end
+   --]]
 
-   cameraX = math.min(math.max(cameraX, -math.pi * 0.5), math.pi * 0.5)
+   cameraX = clampCamRot(cameraX)
 
    selectedButton = math.floor((my - 2 - safeY) / buttonHeight) + 1
    if mx > buttonWidth + 2 + safeX or mx < 2 + safeX then
@@ -353,6 +571,15 @@ function love.draw()
    shaderDiv:send("weightTex", cameraWeightSumCanvas)
    love.graphics.draw(cameraMainCanvas)
    love.graphics.setShader()
+
+
+   for i = 1, 3 do
+      local wx, wy = love.window.getMode()
+      local p = {0, 0, 0}
+      p[i] = 1
+      local pos = worldToScreen(getCameraMatrix(), p)
+      love.graphics.circle("fill", pos[1] * wx, pos[2] * wy, 10)
+   end
 
    local safeX, safeY, safeW, safeH = love.window.getSafeArea()
 

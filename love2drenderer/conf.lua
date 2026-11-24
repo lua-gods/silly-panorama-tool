@@ -3,6 +3,7 @@ function love.conf(t)
    t.window.resizable = true
    t.window.msaa = 4
 	t.window.height = 720
+	-- t.window.width = 720
 	t.window.width = 1280
    t.identity = 'panorama-renderer'
    -- t.console = true
