@@ -286,16 +286,15 @@ function love.update(delta)
       if mouseWasDown and not buttons[selectedButton] then
          cameraVelX = moveX / delta
          cameraVelY = moveY / delta
+		else
+			local velScale = 0.95 ^ (delta * 60)
+			cameraVelX = cameraVelX * velScale
+			cameraVelY = cameraVelY * velScale
+	
+			cameraX = cameraX + cameraVelX * delta * 0.5
+			cameraY = cameraY + cameraVelY * delta * 0.5
       end
-      cameraX = cameraX + cameraVelX * delta * 0.5
-      cameraY = cameraY + cameraVelY * delta * 0.5
-
-      local velScale = 0.95 ^ (delta * 60)
-      cameraVelX = cameraVelX * velScale
-      cameraVelY = cameraVelY * velScale
-
-      cameraX = cameraX + cameraVelX * delta * 0.5
-      cameraY = cameraY + cameraVelY * delta * 0.5
+		
    end
 
    cameraX = math.min(math.max(cameraX, -math.pi * 0.5), math.pi * 0.5)
