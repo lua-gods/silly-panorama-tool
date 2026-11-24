@@ -290,14 +290,19 @@ keybinds:of('', 'key.keyboard.v').press = beginScreenshot
 local page = action_wheel:newPage()
 action_wheel:setPage(page)
 
+local function fancyTitle(title,description,clr)
+	clr = clr or "#ffffff"
+	return '[{"text":"'..title..'\n","color":"'..clr..'"},{"text":"'..description..'","color":"gray"}]'
+end
+
 page:newAction()
    :setItem('minecraft:spyglass')
-   :setTitle("screenshot\nyou can also screenshot with [V]")
+   :setTitle(fancyTitle(":mci_spyglass: Screenshot","You can also screenshot with [V]","#DB9039"))
    :onLeftClick(beginScreenshot)
 
 page:newAction()
    :setItem('minecraft:glass')
-   :setTitle("colors only preview")
+   :setTitle(fancyTitle(":eyes: Colors only preview","toggles wether the preview of the screenshotted region should be of the screenshot, or a flat shade of color"))
    :setToggled(colorOnlyPreview)
    :onToggle(function(state)
       colorOnlyPreview = state
@@ -306,5 +311,5 @@ page:newAction()
 
 page:newAction()
    :setItem('minecraft:diamond')
-   :setTitle('export obj')
+   :setTitle(fancyTitle(':mci_diamond: Export to OBJ',"Exports the screenshots into a 3D model. it will be located at figura/data/panorama-model/","#9FF8E5"))
    :setOnLeftClick(exportObj)
