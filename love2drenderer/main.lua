@@ -181,7 +181,7 @@ local function renderPanorama(isCubemap)
       panoramaCanvas = love.graphics.newCanvas(resolution * 2, resolution, {dpiscale = 1})
    end
    for i, camRot in pairs(panoramaDirs) do
-      renderCamera(camRot[1], camRot[2], 90, mainCanvas, weightSumCanvas)
+      renderCamera(camRot[1], camRot[2], cameraFov, mainCanvas, weightSumCanvas)
       love.graphics.setCanvas(mainCanvas2)
       love.graphics.clear()
       love.graphics.setShader(shaderDiv)
@@ -219,6 +219,12 @@ end
 
 function love.resize()
    updateCanvases()
+end
+
+function love.wheelmoved(rx, ry)
+	cameraFov = cameraFov * (1 - ry * 0.1)
+	
+	cameraFov = math.max(math.min(cameraFov,120),1)
 end
 
 ---@type {text: string, func: fun(btn: {text: string})?}[]
@@ -271,9 +277,11 @@ function love.update(delta)
          oldMousePos = mousePos
       end
    end
+	
+	local scale = cameraFov / 90
 
-   local moveX = (oldMousePos[2] - mousePos[2]) * 2
-   local moveY = (oldMousePos[1] - mousePos[1]) * (wx / wy) * 2
+   local moveX = (oldMousePos[2] - mousePos[2]) * 2 * scale
+   local moveY = (oldMousePos[1] - mousePos[1]) * (wx / wy) * 2 * scale
 
    if mouseIsDown and not buttons[selectedButton] then
       cameraX = cameraX + moveX
@@ -284,15 +292,14 @@ function love.update(delta)
 
    do
       if mouseWasDown and not buttons[selectedButton] then
-         cameraVelX = moveX / delta
+			cameraVelX = moveX / delta
          cameraVelY = moveY / delta
 		else
 			local velScale = 0.95 ^ (delta * 60)
 			cameraVelX = cameraVelX * velScale
 			cameraVelY = cameraVelY * velScale
-	
-			cameraX = cameraX + cameraVelX * delta * 0.5
-			cameraY = cameraY + cameraVelY * delta * 0.5
+			cameraX = cameraX + cameraVelX * delta
+			cameraY = cameraY + cameraVelY * delta
       end
 		
    end
