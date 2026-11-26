@@ -1,7 +1,6 @@
 local objLoader = require("obj_loader")
 
--- local model = objLoader.loadObj("model/model.obj")
-local model = objLoader.loadObj("model/model.obj")
+local model = nil
 
 local canvasConf = {format = 'rgba16f'}
 local canvasConfNoDpi = {dpiscale = 1, format = 'rgba16f'}
@@ -11,6 +10,9 @@ local cameraY = 0
 local cameraFov = 90
 local cameraVelX = 0
 local cameraVelY = 0
+
+---@type love.Canvas?
+local bgPanorama = nil
 
 local panoramaDirs = {
    [0] = {0, 0},
@@ -77,8 +79,11 @@ local function updateCanvases(x, y)
 end
 
 local shaderAdd = love.graphics.newShader("vertex.glsl", "add.glsl")
+local shaderAddBg = love.graphics.newShader("add_bg.glsl")
+local shaderBgCut = love.graphics.newShader("bg_cut.glsl")
 local shaderDiv = love.graphics.newShader("div.glsl")
 local shaderPanorama = love.graphics.newShader("panorama.glsl")
+local shaderDownscale = love.graphics.newShader("downscale.glsl")
 
 ---@param a number[]
 ---@param b number[]
@@ -270,26 +275,44 @@ local function renderCamera(camX, camY, fov, mainCanvas, weightSumCanvas)
    weightSumCanvas = weightSumCanvas or cameraWeightSumCanvas
    love.graphics.setCanvas(mainCanvas, weightSumCanvas)
    love.graphics.clear()
+
+   local w, h = mainCanvas:getDimensions()
+   local camMat = getCameraMatrix(camX, camY, fov, mainCanvas)
+   local camMatInv = matrixInvert(camMat)
    love.graphics.setBlendMode("add", "premultiplied")
+
+   if bgPanorama then
+      local x, y = bgPanorama:getDimensions()
+      love.graphics.setShader()
+      love.graphics.setShader(shaderAddBg)
+      shaderAddBg:send("projectionMatrix", "row", camMatInv)
+      love.graphics.draw(bgPanorama, 0, 0, 0, w / x, h / y)
+   end
+
    love.graphics.setShader(shaderAdd)
 
    shaderAdd:send(
       "projectionMatrix",
       "row",
-      getCameraMatrix(camX, camY, fov, mainCanvas)
+      camMat
    )
-   for _, v in pairs(model) do
-      love.graphics.draw(v)
+   if model then
+      for _, v in pairs(model) do
+         love.graphics.draw(v)
+      end
    end
 
    love.graphics.setBlendMode("alpha", "alphamultiply")
+
    love.graphics.setCanvas()
    love.graphics.setShader()
 end
 
 ---@param isCubemap boolean
-local function renderPanorama(isCubemap)
-   local resolution = exportResolutions[exportResolution]
+---@param resolution number?
+---@param dontSave boolean?
+local function renderPanorama(isCubemap, resolution, dontSave)
+   resolution = resolution or exportResolutions[exportResolution]
    local mainCanvas = love.graphics.newCanvas(resolution, resolution, canvasConfNoDpi)
    local mainCanvas2 = love.graphics.newCanvas(resolution, resolution, {dpiscale = 1})
    local weightSumCanvas = love.graphics.newCanvas(resolution, resolution, canvasConfNoDpi)
@@ -308,14 +331,16 @@ local function renderPanorama(isCubemap)
       love.graphics.setShader()
       love.graphics.setCanvas()
       if isCubemap then
-         mainCanvas2:newImageData():encode("png", "panorama_"..i..".png")
+         if not dontSave then
+            mainCanvas2:newImageData():encode("png", "panorama_"..i..".png")
+         end
       else
          love.graphics.setCanvas(panoramaCanvas)
          love.graphics.setShader(shaderPanorama)
          shaderPanorama:send("rotX", camRot[1])
          shaderPanorama:send("rotY", camRot[2])
          love.graphics.draw(mainCanvas2, 0, 0, 0, 2, 1)
-         love.graphics.setColor(1, 1, 1)
+         -- love.graphics.setColor(1, 1, 1)
          love.graphics.setShader()
          love.graphics.setCanvas()
       end
@@ -326,23 +351,13 @@ local function renderPanorama(isCubemap)
    weightSumCanvas:release()
 
    if not isCubemap then
-      panoramaCanvas:newImageData():encode("png", "panorama360.png")
-      panoramaCanvas:release()
+      if dontSave then
+         return panoramaCanvas
+      else
+         panoramaCanvas:newImageData():encode("png", "panorama360.png")
+         panoramaCanvas:release()
+      end
    end
-end
-
-function love.load()
-   updateCanvases()
-end
-
-function love.resize()
-   updateCanvases()
-end
-
-function love.wheelmoved(rx, ry)
-	cameraFov = cameraFov * (1 - ry * 0.1)
-
-	cameraFov = math.max(math.min(cameraFov,120),1)
 end
 
 ---@type {text: string, func: fun(btn: {text: string})?}[]
@@ -388,6 +403,64 @@ end
 ---@return number
 local function clampCamRot(rot)
    return math.min(math.max(rot, -math.pi * 0.5), math.pi * 0.5)
+end
+
+---@param path string
+local function loadPanorama(path)
+   if bgPanorama then
+      bgPanorama:release()
+   end
+   bgPanorama = nil
+   model = objLoader.loadObj(path)
+   local bgCanvas = renderPanorama(false, 256, true)
+   local w, h = bgCanvas:getDimensions()
+   local canvas = love.graphics.newCanvas(w, h, {dpiscale = 1})
+   local swap = love.graphics.newCanvas(w, h, {dpiscale = 1})
+   love.graphics.setBlendMode("replace", "premultiplied")
+   local first = true
+   for i = 1, 9 do
+      local dist = 2 ^ (i - 1)
+      for j = 1, 0, -1 do
+         shaderDownscale:send("blur_mode", j)
+         local myDist = j == 1 and 1 or dist
+         for k = 1, 2 do
+            shaderDownscale:send("blur_dir", k == 1 and {myDist, 0} or {0, myDist})
+            love.graphics.setCanvas(swap)
+            love.graphics.clear()
+            love.graphics.setShader(shaderDownscale)
+            love.graphics.draw(first and bgCanvas or canvas)
+            love.graphics.setShader()
+            love.graphics.setCanvas()
+            swap, canvas = canvas, swap
+            first = false
+         end
+      end
+   end
+   love.graphics.setCanvas(swap)
+   love.graphics.clear()
+   shaderBgCut:send("tex_orginal", bgCanvas)
+   love.graphics.setShader(shaderBgCut)
+   love.graphics.draw(canvas)
+   love.graphics.setShader()
+   love.graphics.setCanvas()
+   swap, canvas = canvas, swap
+   love.graphics.setBlendMode("alpha")
+   bgPanorama = canvas
+end
+
+function love.load()
+   loadPanorama("model/model.obj")
+   updateCanvases()
+end
+
+function love.resize()
+   updateCanvases()
+end
+
+function love.wheelmoved(rx, ry)
+	cameraFov = cameraFov * (1 - ry * 0.1)
+
+	cameraFov = math.max(math.min(cameraFov,120),1)
 end
 
 function love.update(delta)
@@ -457,31 +530,7 @@ function love.update(delta)
       moveX = bestX
       moveY = bestY
       scale = scale * 0.6
-      lastBest = bestDist
-
-      -- local rotYOld = math.atan2(posOld[3], posOld[1])
-      -- local rotYNew = math.atan2(posNew[3], posNew[1])
-      -- local offsetYRot = (rotYOld - rotYNew + math.pi) % (math.pi * 2) - math.pi
-
-      -- moveY = offsetYRot
-
-      -- local rotXOld = math.atan2(posOld[2], math.sqrt(posOld[1] * posOld[1] + posOld[3] * posOld[3]))
-      -- local rotXNew = math.atan2(posNew[2], math.sqrt(posNew[1] * posNew[1] + posNew[3] * posNew[3]))
-      -- local offsetXRot = (rotXOld - rotXNew + math.pi) % (math.pi * 2) - math.pi
-
-      -- moveX = offsetXRot
    end
-      -- print("dist", math.sqrt(lastBest))
-      -- print("scale", scale)
-      -- print("pos", moveX, moveY)
-
-      -- for i = 0, 3 do
-      --    for k = 0, 3 do
-      --       io.write(math.floor(camMat[i + k * 4 + 1] * 1000) / 1000 .. "\t")
-      --    end
-      --    print()
-      -- end
-      -- print(pos[1], pos[2], pos[3], pos[4])
       moveX = moveX - cameraPosStart[1]
       moveY = moveY - cameraPosStart[2]
    end
@@ -565,6 +614,7 @@ function love.update(delta)
 end
 
 function love.draw()
+   love.graphics.clear(0.5, 0.5, 0.5)
    renderCamera()
 
    love.graphics.setShader(shaderDiv)
@@ -572,14 +622,14 @@ function love.draw()
    love.graphics.draw(cameraMainCanvas)
    love.graphics.setShader()
 
-
+   --[[
    for i = 1, 3 do
       local wx, wy = love.window.getMode()
       local p = {0, 0, 0}
       p[i] = 1
       local pos = worldToScreen(getCameraMatrix(), p)
       love.graphics.circle("fill", pos[1] * wx, pos[2] * wy, 10)
-   end
+   end--]]
 
    local safeX, safeY, safeW, safeH = love.window.getSafeArea()
 
