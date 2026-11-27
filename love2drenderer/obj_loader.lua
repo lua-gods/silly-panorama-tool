@@ -76,7 +76,7 @@ function mod.loadObj(filePath)
                uv[1], 1 - uv[2]
             })
          end
-         local mesh = love.graphics.newMesh(vertexFormat, myVertices)
+         local mesh = love.graphics.newMesh(vertexFormat, myVertices, "fan")
          if currentTexture then
             mesh:setTexture(currentTexture)
          end

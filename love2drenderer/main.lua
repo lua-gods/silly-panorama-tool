@@ -493,6 +493,7 @@ local function loadPanorama(path)
 			end
 		end
 	end
+	---[[
 	love.graphics.setCanvas(swap)
 	love.graphics.clear()
 	shaderBgCut:send("tex_orginal", bgCanvas)
@@ -501,6 +502,7 @@ local function loadPanorama(path)
 	love.graphics.setShader()
 	love.graphics.setCanvas()
 	swap, canvas = canvas, swap
+	--]]
 	love.graphics.setBlendMode("alpha")
 	bgPanorama = canvas
 end

@@ -1,3 +1,5 @@
+#define PI 3.1415926535
+
 uniform vec2 blur_dir;
 uniform float blur_mode;
 
@@ -11,10 +13,15 @@ vec4 effect(vec4 texcolor, Image tex, vec2 texcoord, vec2 screen_coords) {
    // color *= weight;
    color = vec4(0.0);
    float weight = 0.0;
+   float xScale = tan((texcoord.y - 0.5) * PI);
+   // float xScale = 1.0;
    for (float x = -3.5; x < 4.0; x++) {
       vec2 dir = blur_dir * x;
-      vec2 uv = texcoord + dir / love_ScreenSize.xy;
+      dir /= love_ScreenSize.xy;
+      dir.x = clamp(dir.x * xScale, -0.4, 0.4);
+      vec2 uv = texcoord + dir;
       uv.x = fract(uv.x);
+      uv.y = clamp(uv.y, 0.0, 1.0);
       vec4 myColor = Texel(tex, uv);
       float myWeight = myColor.a > 0.999 ? 1.0 : 0.0;
       // float myWeight = myColor.a;
