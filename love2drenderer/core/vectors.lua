@@ -453,8 +453,9 @@ end
 ---@return Vector2
 function Vector2:rotate(angle)
 	local d = math.rad(angle)
-	self.x = math.cos(d) * self.x - math.sin(d) * self.y
-	self.y = math.sin(d) * self.x + math.cos(d) * self.y
+	local x,y = self.x,self.y
+	self.x = math.cos(d) * x - math.sin(d) * y
+	self.y = math.sin(d) * x + math.cos(d) * y
 	return self
 end
 
