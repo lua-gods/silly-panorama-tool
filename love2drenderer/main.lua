@@ -1,4 +1,15 @@
-local objLoader = require("obj_loader")
+
+-- core loader
+for _, item in pairs(love.filesystem.getDirectoryItems("core")) do
+	if item:find("%.lua$") then
+		require("core."..item:sub(1,-5))
+	end
+end
+
+--──── DEPENDENCIES ────────────────────────────────────────────--
+local ObjLoader = require("obj_loader")
+local GNUI = require("lib.GNUI.init")
+
 
 local model = nil
 
@@ -411,7 +422,7 @@ local function loadPanorama(path)
       bgPanorama:release()
    end
    bgPanorama = nil
-   model = objLoader.loadObj(path)
+   model = ObjLoader.loadObj(path)
    local bgCanvas = renderPanorama(false, 256, true)
    local w, h = bgCanvas:getDimensions()
    local canvas = love.graphics.newCanvas(w, h, {dpiscale = 1})

@@ -1,0 +1,293 @@
+--[[______   __
+  / ____/ | / / Name: GNUI CANVAS API v1.0.0
+ / / __/  |/ /  Desc: the base Canvas, aka the root box
+/ /_/ / /|  / Author: GNanimates | https://gnon.top | @gn68s
+\____/_/ |_/ License: Mozilla Public License Version 2.0 ]]
+---@diagnostic disable: return-type-mismatch, assign-type-mismatch, undefined-field
+local BASE = ((...):gsub("/", ".")):match(".+%.GNUI")
+
+local gncommon = require("lib.GNcommon") ---@type GNCommon
+local cfg = require(BASE .. ".config") ---@type GNUI.config
+local Box = require(cfg.CORE .. ".prims.box") ---@type GNUI.Primitive.BoxAPI
+local Render = require(cfg.RENDER .. ".init") ---@type GNUI.RenderAPI
+local Event = require(cfg.EVENT) ---@type GN.Event
+
+local Layout = require(cfg.LAYOUT .. ".init") ---@type GNUI.LayoutAPI
+
+--TODO: move this all to the box, and make all of them able to cancel the event.
+---@class GNUI.Canvas.Event.CharInput : GN.Event
+---@field register fun(self,func:(fun(char: string):boolean?),id:any?)
+
+---@class GNUI.Canvas.Event.KeyInput : GN.Event
+---@field register fun(self,func:(fun(scancode:integer, state:integer):boolean?),id:any?)
+
+---@class GNUI.Canvas.Event.MouseInput : GN.Event
+---@field register fun(self,func:(fun(button:integer,state:integer):boolean?),id:any?)
+
+---@class GNUI.Canvas.Event.CursorMoved : GN.Event
+---@field register fun(self,func:(fun(pos: Vector2, vel: Vector2)),id:any?)
+
+
+
+---@alias GNUI.InputButton.Type integer
+---| [0]  LEFT
+---| [1]  RIGHT
+---| [2]  MIDDLE
+
+
+---@alias GNUI.InputButton.State integer
+---| [0]  PRESSED
+---| [1]  RELEASED
+---| [2]  HOLD
+
+
+---API for instantiating a Canvas object
+---@class GNUI.CanvasAPI
+local CanvasAPI = {}
+
+---A root node for boxes,
+---this class also exposes all the input methods for the framework to connect to
+---@class GNUI.Canvas : GNUI.Box
+---@field display GNUI.Render.Display
+---@field queueUpdate GNUI.Box[]
+---@field hoveredBox GNUI.Box
+---@field pressedButtons GNUI.Box[]
+---@field nextFrameCallbacks function[]
+---
+---@field FLUSH_UPDATES GN.Event
+---@field POST_FLUSH_UPDATES GN.Event
+---
+---@field CHAR_INPUT GNUI.Canvas.Event.CharInput
+---@field KEY_INPUT GNUI.Canvas.Event.KeyInput
+---@field MOUSE_INPUT GNUI.Canvas.Event.MouseInput
+---@field CURSOR_MOVED GNUI.Canvas.Event.CursorMoved
+---@field HOVERED_BOX_CHANGED GN.Event
+local Canvas = {}
+Canvas.__index = function(t, i)
+	return rawget(t, i) or Canvas[i] or Box.index(t, i)
+end
+
+
+---Creates a new canvas for boxes to attach to, this box is special,
+---as it acts as the root node of all boxes
+---@return GNUI.Canvas
+function CanvasAPI.new()
+	---@diagnostic disable-next-line: missing-parameter its literally me!
+	local self = Box.new()
+	---@cast self GNUI.Canvas
+	self.display = Render.newDisplay()
+	self.canvas = self
+	self.visualID = 1
+	self.queueUpdate = {}
+	self.pressedButtons = {}
+	
+	self.nextFrameCallbacks = {}
+	
+	self.FLUSH_UPDATES = Event.new()
+	self.POST_FLUSH_UPDATES = Event.new()
+	self.HOVERED_BOX_CHANGED = Event.new()
+	
+	self.CURSOR_MOVED = Event.new()
+
+	self:setSizing("FIXED", "FIXED")
+	setmetatable(self, Canvas)
+	return self
+end
+
+
+---Forces an immidiate update to all the boxes in the queue
+---@return GNUI.Canvas
+--TODO: replace with a method that propagates from the root screen to the element, and back to the screen
+
+---TODO: replace with a method that allows selecting boxes outside parent bounds.
+---Finds the box being hovered by the cursor
+---@param box GNUI.Box
+---@param pos Vector2
+---@return GNUI.Box
+local function findHoveredBox(box, pos)
+	if box.clipChildren and not box:isPosInBox(pos) then
+		return box
+	end
+	for index = #box.children, 1, -1 do
+		local childBox = box.children[index]
+		if not childBox.isClipped and childBox.captureInput and childBox.visible and childBox:isPosInboundingBox(pos) then
+			local hoveredBox = findHoveredBox(childBox, pos)
+			if hoveredBox and hoveredBox:isPosInBox(pos)
+			then
+				return hoveredBox
+			end
+		end
+	end
+	return box
+end
+
+---Forces an immidiate update to all the boxes in the queue
+---@return GNUI.Canvas
+function Canvas:flushUpdates()
+	self.FLUSH_UPDATES:invoke()
+	local hadUpdates = next(self.queueUpdate) ~= nil
+	for key, box in pairs(self.queueUpdate) do
+		self.queueUpdate[key] = nil
+		box:forceUpdate()
+	end
+	if hadUpdates and self.cursorPos then
+		local newHoveredBox = findHoveredBox(self, self.cursorPos)
+		if self.hoveredBox ~= newHoveredBox then
+			if self.hoveredBox then
+				self.hoveredBox.isHovered = false
+				self.hoveredBox.CURSOR_PRESENCE_CHANGED:invoke(false)
+			end
+			local old = self.hoveredBox
+			self.hoveredBox = newHoveredBox
+			self.HOVERED_BOX_CHANGED:invoke(newHoveredBox, old)
+			if newHoveredBox then
+				newHoveredBox.isHovered = true
+				newHoveredBox.CURSOR_PRESENCE_CHANGED:invoke(true)
+			end
+		end
+	end
+	for index, value in ipairs(self.nextFrameCallbacks) do
+		value()
+	end
+	self.nextFrameCallbacks = {}
+	self.POST_FLUSH_UPDATES:invoke()
+	return self
+end
+
+
+---Sets the position of the cursor in the Canvas.
+---@overload fun(self: GNUI.Canvas ,xy: Vector2): GNUI.Canvas
+---@param x number
+---@param y number
+---@return GNUI.Canvas
+function Canvas:setCursorPos(x, y)
+	local newCursorPos = gncommon.vec2(x, y)
+	if self.cursorPos ~= newCursorPos then
+		local lastCursorPos = self.cursorPos
+		local cursorVel = newCursorPos - (lastCursorPos or newCursorPos)
+
+		self.cursorPos = newCursorPos
+
+		local newHoveredBox = findHoveredBox(self, self.cursorPos)
+
+		self.CURSOR_MOVED:invoke(self.cursorPos, cursorVel)
+
+		if self.hoveredBox ~= newHoveredBox then
+			if self.hoveredBox then
+				self.hoveredBox.isHovered = false
+				self.hoveredBox.CURSOR_PRESENCE_CHANGED:invoke(false)
+			end
+			local old = self.hoveredBox
+			self.hoveredBox = newHoveredBox
+			self.HOVERED_BOX_CHANGED:invoke(newHoveredBox,old)
+			if newHoveredBox then
+				newHoveredBox.isHovered = true
+				newHoveredBox.CURSOR_PRESENCE_CHANGED:invoke(true)
+			end
+		end
+	end
+	return self
+end
+
+-- propagate scroll input from children to its parents, begging for one to capture it lmao.
+---@param box GNUI.Box
+---@param ... any
+---@return boolean
+local function processUnhandledInputCapture(box, event, ...)
+	local outs = box[event]:invoke(...)
+	for index, value in ipairs(outs) do
+		if value[1] then return true end
+	end
+	if box.parent then
+		return processUnhandledInputCapture(box.parent, event, ...)
+	end
+	return false
+end
+
+---@param canvas GNUI.Canvas
+---@param box GNUI.Box?
+---@param event string
+---@param ... any
+---@return boolean?
+local function processInput(canvas, box, event, ...)
+	if canvas then
+		local outs = canvas[event]:invoke(...)
+		for index, value in ipairs(outs) do
+			if value[1] then
+				return true
+			end
+		end
+	end
+	if box and box ~= canvas then
+		local outs = box[event]:invoke(...)
+		for index, value in ipairs(outs) do
+			if value[1] then
+				return true
+			end
+		end
+	end
+	local target = box or canvas
+	if target then
+		return processUnhandledInputCapture(target, "UNHANDLED_" .. event, ...)
+	end
+end
+
+
+function Canvas:inputScroll(y, x)
+	processInput(self, self.hoveredBox, "SCROLL_INPUT", y, x, 0)
+end
+
+---@param scancode integer
+---@param state integer
+function Canvas:inputKey(scancode, state)
+	local target = self.hoveredBox or self
+	if state == 1 or state == 2 then
+		self.pressedButtons[scancode] = target
+		local capture = processInput(self, target, "KEY_INPUT", scancode, state)
+		return capture
+	elseif state == 0 then
+		local pressedTarget = self.pressedButtons[scancode] or target
+		self.pressedButtons[scancode] = nil
+		return processInput(self, pressedTarget, "KEY_INPUT", scancode, state)
+	end
+end
+
+function Canvas:inputChar(char)
+	local out = processInput(self, self.hoveredBox or self, "CHAR_INPUT", char)
+	return out
+end
+
+---@param button integer
+---@param state integer
+function Canvas:inputMouse(button, state)
+	local target = self.hoveredBox or self
+	if state == 1 then
+		self.pressedButtons[button] = target
+		processInput(self, target, "MOUSE_INPUT", button, state)
+	elseif state == 0 then
+		local pressedTarget = self.pressedButtons[button]
+		self.pressedButtons[button] = nil
+		if pressedTarget and pressedTarget.canvas == self then
+			processInput(self, pressedTarget, "MOUSE_INPUT", button, state)
+		else
+			processInput(self, nil, "MOUSE_INPUT", button, state)
+		end
+	end
+end
+
+
+---calls the given function when all screen requested updates are called.
+---
+---This is useful for when you want to wait for a layout update before gathering data from them.
+---@param callback fun()
+function Canvas:callNextFrame(callback)
+	self.nextFrameCallbacks[#self.nextFrameCallbacks+1] = callback
+end
+
+
+---Love2D Exclusive
+function Canvas:draw(graphics)
+	self.display:draw(graphics)
+end
+
+return CanvasAPI

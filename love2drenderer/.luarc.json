@@ -1,0 +1,13 @@
+{
+	/*==============================================================================================*\
+  |*  WORKSPACE: Controls workspace behavior.                                                     *|
+  \*==============================================================================================*/
+	"workspace": {
+		// Modify ignored files
+		"useGitIgnore": true, // Ignore the same files as Git.
+		"ignoreSubmodules": false, // Git submodules are ignored.
+		// Avoid excessive memory usage.
+		"maxPreload": 5000,
+		"preloadFileSize": 500
+	}
+}
