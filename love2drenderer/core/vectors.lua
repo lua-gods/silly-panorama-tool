@@ -7,8 +7,6 @@
 \____/_/ |_/  /_/  |_\__,_/_/  /_/\__,_/_/  \____/_/|_|\__, /_/_/  /_/
 --A Vectors library                  /____]]
 
-local event = require("lib.GNevent")
-
 ---@class Vector4
 ---@field x number
 ---@field y number
@@ -22,7 +20,6 @@ local event = require("lib.GNevent")
 ---@operator pow: Vector4
 ---@operator mod: Vector4
 ---@operator concat: Vector4
----@field VALUES_CHANGED GN.Event
 local Vector4 = {}
 
 
@@ -37,7 +34,6 @@ local Vector4 = {}
 ---@operator pow: Vector2
 ---@operator mod: Vector2
 ---@operator concat: Vector2
----@field VALUES_CHANGED GN.Event
 local Vector2 = {}
 
 
@@ -53,7 +49,6 @@ local Vector2 = {}
 ---@operator pow: Vector3
 ---@operator mod: Vector3
 ---@operator concat: Vector3
----@field VALUES_CHANGED GN.Event
 local Vector3 = {}
 
 
@@ -70,7 +65,6 @@ function Vector2.new(x,y)
 	self = {
 		x=x or 0,
 		y=y or 0,
-		VALUES_CHANGED = event.new()
 	}
 	setmetatable(self,Vector2)
 	return self
@@ -93,7 +87,6 @@ function Vector3.new(x,y,z)
 		x=x or 0,
 		y=y or 0,
 		z=z or 0,
-		VALUES_CHANGED = event.new()
 	}
 	setmetatable(self,Vector3)
 	return self
@@ -118,7 +111,6 @@ function Vector4.new(x,y,z,w)
 		y = y or 0,
 		z = z or 0,
 		w = w or 0,
-		VALUES_CHANGED = event.new()
 	}
 	setmetatable(self,Vector4)
 	return self
@@ -138,23 +130,19 @@ Vector2.__index = function (t,key)
 		if #key == 2 then
 			local a = key:sub(1,1)
 			local b = key:sub(2,2)
-			t.VALUES_CHANGED:invoke()
 			return Vector2.new(t[a] or 0, t[b] or 0)
 		elseif #key == 3 then
 			local a = key:sub(1,1)
 			local b = key:sub(2,2)
 			local c = key:sub(3,3)
-			t.VALUES_CHANGED:invoke()
 			return Vector3.new(t[a] or 0, t[b] or 0, t[c] or 0)
 		elseif #key == 4 then
 			local a = key:sub(1,1)
 			local b = key:sub(2,2)
 			local c = key:sub(3,3)
 			local d = key:sub(4,4)
-			t.VALUES_CHANGED:invoke()
 			return Vector4.new(t[a] or 0, t[b] or 0, t[c] or 0, t[d] or 0)
 		elseif #key == 1 then
-			t.VALUES_CHANGED:invoke()
 			return t[key]
 		end
 	end
@@ -248,7 +236,6 @@ Vector2.__concat = function (a,b)
 ---@diagnostic disable-next-line: param-type-mismatch
 	local new
 	new = Vector2.new(tonumber(tostring(a.x) .. tostring(b.x)),tonumber(tostring(a.y) .. tostring(b.y)))
-	a.VALUES_CHANGED:invoke(a)
 	return new
 end
 
@@ -266,7 +253,6 @@ end
 ---@return Vector2
 function Vector2:set(x,y)
 	self:rawset(x,y or x)
-	self.VALUES_CHANGED:invoke(self.x,self.y)
 	return self
 end
 
@@ -303,7 +289,6 @@ function Vector2:add(x,y)
 		self.x = self.x + x
 		self.y = self.y + (y or x)
 	end
-	self.VALUES_CHANGED:invoke(self.x,self.y)
 	return self
 end
 
@@ -322,7 +307,6 @@ function Vector2:sub(x,y)
 		self.x = self.x - x
 		self.y = self.y - (y or x)
 	end
-	self.VALUES_CHANGED:invoke(self.x,self.y)
 	return self
 end
 
@@ -341,7 +325,6 @@ function Vector2:mul(x,y)
 		self.x = self.x * x
 		self.y = self.y * (y or x)
 	end
-	self.VALUES_CHANGED:invoke(self.x,self.y)
 	return self
 end
 
@@ -360,7 +343,6 @@ function Vector2:div(x,y)
 		self.x = self.x / (x or 1)
 		self.y = self.y / (y or x or 1)
 	end
-	self.VALUES_CHANGED:invoke(self.x,self.y)
 	return self
 end
 
@@ -380,7 +362,6 @@ function Vector2:mod(x,y)
 		self.x = self.x % x
 		self.y = self.y % (y or x)
 	end
-	self.VALUES_CHANGED:invoke(self.x,self.y)
 	return self
 end
 
@@ -405,7 +386,6 @@ function Vector2:normalize()
 	local d = self:length()
 	self.x = self.x / d
 	self.y = self.y / d
-	self.VALUES_CHANGED:invoke(self.x,self.y)
 	return self
 end
 
@@ -499,21 +479,17 @@ Vector3.__index = function (t,k)
 			local y = k:sub(2,2)
 			local z = k:sub(3,3)
 			local w = k:sub(4,4)
-			t.VALUES_CHANGED:invoke()
 			return Vector4.new(t[x] or 0, t[y] or 0, t[z] or 0, t[w] or 0)
 		elseif #k == 3 then
 			local x = k:sub(1,1)
 			local y = k:sub(2,2)
 			local z = k:sub(3,3)
-			t.VALUES_CHANGED:invoke()
 			return Vector3.new(t[x] or 0, t[y] or 0, t[z] or 0)
 		elseif #k == 2 then
 			local x = k:sub(1,1)
 			local y = k:sub(2,2)
-			t.VALUES_CHANGED:invoke()
 			return Vector2.new(t[x] or 0, t[y] or 0)
 		elseif #k == 1 then
-			t.VALUES_CHANGED:invoke()
 			return t[k]
 		end
 	end
@@ -636,7 +612,6 @@ end
 ---@return Vector3
 function Vector3:set(x,y,z)
 	self:rawset(x,y or x,z or x)
-	self.VALUES_CHANGED:invoke(self.x,self.y,self.z)
 	return self
 end
 
@@ -679,7 +654,6 @@ function Vector3:add(x,y,z)
 		self.y = self.y + y or x
 		self.z = self.z + z or x
 	end
-	self.VALUES_CHANGED:invoke(self.x,self.y,self.z)
 	return self
 end
 
@@ -701,7 +675,6 @@ function Vector3:sub(x,y,z)
 		self.y = self.y - y or x
 		self.z = self.z - z or x
 	end
-	self.VALUES_CHANGED:invoke(self.x,self.y,self.z)
 	return self
 end
 
@@ -723,7 +696,6 @@ function Vector3:mul(x,y,z)
 		self.y = self.y * y or x
 		self.z = self.z * z or x
 	end
-	self.VALUES_CHANGED:invoke(self.x,self.y,self.z)
 	return self
 end
 
@@ -745,7 +717,6 @@ function Vector3:div(x,y,z)
 		self.y = self.y / (y or x or 1)
 		self.z = self.z / (z or x or 1)
 	end
-	self.VALUES_CHANGED:invoke(self.x,self.y,self.z)
 	return self
 end
 
@@ -767,7 +738,6 @@ function Vector3:mod(x,y,z)
 		self.y = self.y % (y or x)
 		self.z = self.z % (z or x)
 	end
-	self.VALUES_CHANGED:invoke(self.x,self.y,self.z)
 	return self
 end
 
@@ -791,7 +761,6 @@ function Vector3:normalize()
 	self.x = self.x / d
 	self.y = self.y / d
 	self.z = self.z / d
-	self.VALUES_CHANGED:invoke(self.x,self.y,self.z)
 	return self
 end
 
@@ -1045,7 +1014,6 @@ Vector4.__concat = function (a,b)
 		tonumber(tostring(a.z) .. tostring(b.z)),
 		tonumber(tostring(a.w) .. tostring(b.w))
 	)
-	a.VALUES_CHANGED:invoke(a)
 	return new
 end
 
@@ -1064,7 +1032,6 @@ end
 ---@return Vector4
 function Vector4:set(x,y,z,w)
 	self:rawset(x,y,z,w)
-	self.VALUES_CHANGED:invoke(self.x,self.y,self.z)
 	return self
 end
 
@@ -1110,7 +1077,6 @@ function Vector4:add(x,y,z,w)
 		self.z = self.z + z
 		self.w = self.w + w
 	end
-	self.VALUES_CHANGED:invoke(self.x,self.y,self.z,self.w)
 	return self
 end
 
@@ -1134,7 +1100,6 @@ function Vector4:sub(x,y,z,w)
 		self.z = self.z - z
 		self.w = self.w - w
 	end
-	self.VALUES_CHANGED:invoke(self.x,self.y,self.z,self.w)
 	return self
 end
 
@@ -1158,7 +1123,6 @@ function Vector4:mul(x,y,z,w)
 		self.z = self.z * z
 		self.w = self.w * w
 	end
-	self.VALUES_CHANGED:invoke(self.x,self.y,self.z,self.w)
 	return self
 end
 
@@ -1182,7 +1146,6 @@ function Vector4:div(x,y,z,w)
 		self.z = self.z / (z or 1)
 		self.w = self.w
 	end
-	self.VALUES_CHANGED:invoke(self.x,self.y,self.z,self.w)
 	return self
 end
 
@@ -1207,7 +1170,6 @@ function Vector4:mod(x,y,z,w)
 		self.z = self.z % z
 		self.w = self.w
 	end
-	self.VALUES_CHANGED:invoke(self.x,self.y,self.z,self.w)
 	return self
 end
 
@@ -1232,7 +1194,6 @@ function Vector4:normalize()
 	self.y = self.y / d
 	self.z = self.z / d
 	self.w = self.w / d
-	self.VALUES_CHANGED:invoke(self.x,self.y,self.z,self.w)
 	return self
 end
 
