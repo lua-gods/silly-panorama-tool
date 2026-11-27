@@ -226,11 +226,14 @@ function Label:draw(pos,visual)
 		local padding = self.padding
 		local scale = self.scale or 1
 		local finalWidth = math.max(0, self.size.x - padding.x - padding.z)
-		local size = utils.getTextSize(self.text, self.size.x, self.wrapText and finalWidth > 20) * scale
+		local wrap = self.wrapText and finalWidth > 0
+		local size = utils.getTextSize(self.text, finalWidth / scale, wrap) * scale
+		local topY = pos.y + padding.y + 3 * scale
+		local botY = pos.y + self.size.y - math.max(0, padding.w) - size.y + 2 * scale
 		love.graphics.printf(
 			{{self.textColor:unpack()}, self.text},
 			pos.x + padding.x + self.textOffset.x,
-			math.lerp(pos.y + size.y * 0.5, pos.y + self.size.y - size.y + 1, self.textAlignment.y * 0.5 + 0.5) + self.textOffset.y,
+			math.floor(math.lerp(topY, botY, self.textAlignment.y * 0.5 + 0.5) + 0.5) + self.textOffset.y,
 			finalWidth / scale,
 			self.textAlignment.x == -1 and "left" or self.textAlignment.x == 0 and "center" or "right",
 			0,

@@ -19,7 +19,7 @@ return {
 					type = "nineslice",
 					texturePath = atlas,
 					uv = vec(5, 10, 7, 12),
-					border = vec(2, 2, 2, 2),
+					border = vec(1, 1, 1, 1),
 					padding = vec(1, 1, 1, 1),
 					childGap = 1,
 				},
@@ -111,6 +111,26 @@ return {
 					expand = vec(1, 1, 1, 1),
 					textAlignment = vec(0, 0),
 					textColor = "#C4C4C4",
+				},
+			},
+			flat = {
+				normal = {
+					type = "quad",
+					texturePath = atlas,
+					uv = vec(2,11,2,11),
+					sizing="STRETCH"
+				},
+				hovered =  {
+					type = "quad",
+					texturePath = atlas,
+					uv = vec(2,11,2,11),
+					sizing="STRETCH"
+				},
+				pressed =  {
+					type = "quad",
+					texturePath = atlas,
+					uv = vec(2,11,2,11),
+					sizing="STRETCH"
 				},
 			},
 		},

@@ -48,7 +48,7 @@ function util.getTextSize(content, maxWidth, wrap)
 	else
 		textObj:setf(content, math.max(0, maxWidth or math.huge), "left")
 	end
-	return vec(textObj:getDimensions())
+	return vec(textObj:getDimensions()):add(2,1)
 end
 
 ---@param text string

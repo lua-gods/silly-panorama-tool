@@ -76,10 +76,6 @@ function GNUIAPI.getScreen()
 		return screen
 	else
 		screen = Core.newCanvas()
-		screen.FLUSH_UPDATES:register(function ()
-			screen:setSize(utils.getScreenSize())
-		end)
-
 		return screen
 	end
 end

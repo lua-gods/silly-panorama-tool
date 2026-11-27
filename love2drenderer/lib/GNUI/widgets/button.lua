@@ -69,7 +69,10 @@ function ButtonAPI.new(box,canvas,children)
 	self.STATE_CHANGED = Event.new()
 	
 	self.MOUSE_INPUT:register(function (button, state)
-		self:applyButtonAction(button,state)
+		if button == 0 then
+			self:applyButtonAction(button,state)
+			return true
+		end
 	end)
 	self.CURSOR_PRESENCE_CHANGED:register(function (inside)
 		self:applyApropriateStyle()

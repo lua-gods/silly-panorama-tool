@@ -35,13 +35,13 @@ local BoxAPI = {}
 ---| {size?:fun(self:GNUI.Box,children:GNUI.Box[],isY:boolean):(Vector2|number)?,pos?:fun(self:GNUI.Box,children:GNUI.Box[],isY:boolean)}
 
 ---@class GNUI.Box.Event.CharInput : GN.Event
----@field register fun(self,func:fun(char: string))
+---@field register fun(self,func:(fun(char: string):boolean?),id:any?)
 
 ---@class GNUI.Box.Event.KeyInput : GN.Event
----@field register fun(self,func:fun(scancode:integer, state:integer))
+---@field register fun(self,func:(fun(scancode:integer, state:integer):boolean?),id:any?)
 
 ---@class GNUI.Box.Event.MouseInput : GN.Event
----@field register fun(self,func:fun(button:integer,state:integer))
+---@field register fun(self,func:(fun(button:integer,state:integer):boolean?),id:any?)
 
 ---@class GNUI.Box.Event.ScrollInput : GN.Event
 ---@field register fun(self,func:(fun(x:integer,y:integer):boolean?),id:any?)

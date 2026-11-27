@@ -9,5 +9,8 @@
 		// Avoid excessive memory usage.
 		"maxPreload": 5000,
 		"preloadFileSize": 500
-	}
+	},
+    "diagnostics.disable": [
+        "need-check-nil"
+    ]
 }

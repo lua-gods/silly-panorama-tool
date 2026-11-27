@@ -234,7 +234,7 @@ end
 
 
 function Canvas:inputScroll(y, x)
-	processInput(self, self.hoveredBox, "SCROLL_INPUT", y, x, 0)
+	return processInput(self, self.hoveredBox, "SCROLL_INPUT", y, x, 0)
 end
 
 ---@param scancode integer
@@ -263,18 +263,24 @@ function Canvas:inputMouse(button, state)
 	local target = self.hoveredBox or self
 	if state == 1 then
 		self.pressedButtons[button] = target
-		processInput(self, target, "MOUSE_INPUT", button, state)
+		return processInput(self, target, "MOUSE_INPUT", button, state)
 	elseif state == 0 then
 		local pressedTarget = self.pressedButtons[button]
 		self.pressedButtons[button] = nil
 		if pressedTarget and pressedTarget.canvas == self then
-			processInput(self, pressedTarget, "MOUSE_INPUT", button, state)
+			return processInput(self, pressedTarget, "MOUSE_INPUT", button, state)
 		else
-			processInput(self, nil, "MOUSE_INPUT", button, state)
+			return processInput(self, nil, "MOUSE_INPUT", button, state)
 		end
 	end
 end
 
+
+---Returns `true` if the input can be handled
+---@return boolean
+function Canvas:isInputHandled()
+	return (self.hoveredBox ~= self)
+end
 
 ---calls the given function when all screen requested updates are called.
 ---

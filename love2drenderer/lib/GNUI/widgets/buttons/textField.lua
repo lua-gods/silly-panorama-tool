@@ -232,7 +232,7 @@ function TextFieldAPI.new(box,canvas,children)
 		end,self.id)
 		
 		self.canvas.MOUSE_INPUT:register(function (button, state)
-			if self.canvas.hoveredBox == self then
+			if self.canvas.hoveredBox == self and button == 0 then
 				return true
 			elseif state == 1 then
 				self:confirm()
@@ -339,12 +339,12 @@ function TextField:confirm()
 end
 
 
----@return string
+---@return string?
 function TextField:getActiveField()
 	if self.down then
-		return self.editingField
+		return (#self.editingField > 0) and self.editingField or nil
 	else
-		return self.field
+		return (#self.field > 0) and self.field or nil
 	end
 end
 

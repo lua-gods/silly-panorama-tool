@@ -25,6 +25,7 @@ local DropdownAPI = {}
 
 ---@class GNUI.Widget.Dropdown : GNUI.Widget.Button
 ---@field popup GNUI.Box
+---@field iconButton GNUI.Widget.Button
 ---@field entries string[]
 ---@field entryButtons GNUI.Widget.Button[]
 ---@field value integer
@@ -63,25 +64,32 @@ function DropdownAPI.new(box, canvas, children)
 	self.VALUE_CHANGED = Event.new()
 	self:setLayout("HORIZONTAL_REVERSED")
 	
-	self:parse({
+	self.iconButton = self:parse({
 		type="button",
 		captureInput=false,
 		sizing = {"FIXED","FILL"},
 		text="+",
-		size = vec(11,0),
+		textAlign = {0.5,0.5},
+		size = vec(11,11),
 	})
 	
 	local popup = canvas:parse({
 		style = "opaque",
 		layout = "VERTICAL",
-		sizing = { "FIXED", "FIT" },
+		sizing = { "FIT", "FIT" },
 	})
 	popup:setVisible(false)
+	popup.MOUSE_INPUT:register(function(button)
+		if button == 0 then
+			return true
+		end
+	end)
 	self.popup = popup
 
 	local function syncPopupTransform()
+		local popPad = popup:getPadding()
 		popup:setPos(self.absPos.x, self.absPos.y + self.finalSize.y)
-		popup:setSize(self.finalSize.x, -1)
+		popup:setMinimumSize(math.max(0, self.finalSize.x - popPad.x - popPad.z), 0)
 	end
 
 	self.SIZE_CHANGED:register(syncPopupTransform)
@@ -140,20 +148,30 @@ function Dropdown:_reindexEntries()
 	end
 end
 
----@private
-function Dropdown:_updateMinimumWidth()
-	local maxW = 0
-	for _, entry in ipairs(self.entries) do
-		local w = utils.getTextSize(entry, math.huge, false).x * self.textScale
-		if w > maxW then
-			maxW = w
+---@param isY boolean
+function Dropdown:_solveFit(isY)
+	Box.index(self, "_solveFit")(self, isY)
+	if not self.visible then return end
+	if not isY then
+		local padding = self:getPadding()
+		local textComp = 0
+		if next(self.text) ~= nil then
+			textComp = utils.getTextSize(self.text[next(self.text)] or "", math.huge, false).x * self.textScale
 		end
+		local iconW = 0
+		if self.iconButton and self.iconButton.visible then
+			local m = self.iconButton:getMargin()
+			iconW = self.iconButton.finalSize.x + m.x + m.z
+		end
+		local contentW = padding.x + textComp + iconW + padding.z + 1
+		if self.sizing.x == "FIXED" then
+			self.finalSize.x = math.max(self.finalMinSize.x, self.size.x, contentW)
+		else
+			self.finalSize.x = math.max(self.finalMinSize.x, contentW)
+		end
+	else
+		self.finalSize.y = math.max(self.finalSize.y, 11)
 	end
-	local pad = self:getPadding()
-	local popPad = self.popup and self.popup:getPadding() or vec(0, 0, 0, 0)
-	local minW = maxW > 0 and (maxW + pad.x + pad.z + popPad.x + popPad.z + 4) or 0
-	local minY = self.minSize and self.minSize.y or 0
-	self:setMinimumSize(minW, math.max(minY, 11))
 end
 
 ---@private
@@ -164,6 +182,7 @@ function Dropdown:_updateDisplayText()
 	else
 		Box.setText(self, self.placeholder or "")
 	end
+	self:update("dim")
 end
 
 ---Adds an entry to the dropdown. If `index` is omitted, appends to the end; otherwise inserts at `index`.
@@ -203,7 +222,6 @@ function Dropdown:addEntry(text, index)
 	elseif index and insertIdx <= self.value then
 		self.value = self.value + 1
 	end
-	self:_updateMinimumWidth()
 	self:_updateDisplayText()
 
 	return self
@@ -232,7 +250,6 @@ function Dropdown:removeEntry(index)
 	elseif index < self.value then
 		self.value = self.value - 1
 	end
-	self:_updateMinimumWidth()
 	self:_updateDisplayText()
 
 	return self
@@ -252,7 +269,6 @@ function Dropdown:setEntry(index, text)
 		if self.entryButtons[index] then
 			self.entryButtons[index]:setText(text)
 		end
-		self:_updateMinimumWidth()
 		if self.value == index then
 			self:_updateDisplayText()
 		end
@@ -272,7 +288,6 @@ function Dropdown:clear()
 	self.entries = {}
 	self.entryButtons = {}
 	self.value = 0
-	self:_updateMinimumWidth()
 	self:_updateDisplayText()
 	return self
 end
@@ -327,6 +342,7 @@ function Dropdown:setText(text, slot)
 		self.placeholder = text
 		if not self.entries[self.value] then
 			Box.setText(self, text, slot)
+			self:update("dim")
 		end
 	else
 		Box.setText(self, text, slot)

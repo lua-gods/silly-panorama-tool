@@ -81,7 +81,7 @@ local function updateSprite(task)
 	local du = uv.z - uv.x
 	local dv = uv.w - uv.y
 
-	if du <= 0 or dv <= 0 then
+	if du == 0 or dv == 0 then
 		task.croppedOut = true
 		return
 	end
@@ -94,7 +94,7 @@ local function updateSprite(task)
 	local v2 = (h > 0) and (uv.w - dv * (cB / h)) or uv.w
 	local rh = v2 - v1
 
-	if rw <= 0 or rh <= 0 then
+	if rw == 0 or rh == 0 or (du * rw < 0) or (dv * rh < 0) then
 		task.croppedOut = true
 		return
 	end
